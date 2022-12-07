@@ -154,6 +154,16 @@ def statements_from_differences(
     return statements
 
 
+def alter_enum_statements(enum, old) -> list[str]:
+    # Special cased here because schemainspect doesn't yet support diffing enums
+    statements = []
+    for element in enum.elements[len(old.elements):]:
+        statements.append(
+            "ALTER TYPE {} ADD VALUE {}".format(old.name, element)
+        )
+    return statements
+
+
 def get_enum_modifications(
     tables_from, tables_target, enums_from, enums_target, return_tuple=False
 ):
@@ -163,6 +173,8 @@ def get_enum_modifications(
     recreate = Statements()
     post = Statements()
     enums_to_change = e_modified
+    only_appending_enums = set()
+    before_enums = {}
 
     for t, v in t_modified.items():
         t_before = tables_from[t]
@@ -176,20 +188,26 @@ def get_enum_modifications(
                 and c.enum != before.enum
             ):
                 has_default = c.default and not c.is_generated
+                if len(before.enum.elements) and len(c.enum.elements) != len(before.enum.elements) and c.enum.elements[:len(before.enum.elements)] == before.enum.elements:
+                    only_appending_enums.add(c.enum.name)
+                    before_enums[c.enum.name] = before.enum
+                else:
+                    if has_default:
+                        pre.append(before.drop_default_statement(t))
 
-                if has_default:
-                    pre.append(before.drop_default_statement(t))
+                    recast = c.change_enum_statement(v.quoted_full_name)
 
-                recast = c.change_enum_statement(v.quoted_full_name)
+                    recreate.append(recast)
 
-                recreate.append(recast)
-
-                if has_default:
-                    post.append(before.add_default_statement(t))
+                    if has_default:
+                        post.append(before.add_default_statement(t))
 
     unwanted_suffix = "__old_version_to_be_dropped"
 
     for e in enums_to_change.values():
+        if e.name in only_appending_enums:
+            pre.extend(alter_enum_statements(e, before_enums[e.name]))
+            continue
         unwanted_name = e.name + unwanted_suffix
 
         rename = e.alter_rename_statement(unwanted_name)
