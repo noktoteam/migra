@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "migra"
-version = "3.0"
+version = "3.0.2"
 authors = [ "Robert Lechte <robertlechte@gmail.com>",]
 license = "Unlicense"
 readme = "README.md"

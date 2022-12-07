@@ -159,7 +159,7 @@ def alter_enum_statements(enum, old) -> list[str]:
     statements = []
     for element in enum.elements[len(old.elements):]:
         statements.append(
-            "ALTER TYPE {} ADD VALUE {}".format(old.name, element)
+            "ALTER TYPE {} ADD VALUE '{}'".format(old.name, element)
         )
     return statements
 
